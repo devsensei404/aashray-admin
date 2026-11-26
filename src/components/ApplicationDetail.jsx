@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { useAuth } from '../auth.jsx'
 import { APP_STATUS, formatDate } from '../format.js'
 
 export default function ApplicationDetail({ noun, basePath, get, setStatus, remove, showAnimal }) {
@@ -40,7 +39,6 @@ export default function ApplicationDetail({ noun, basePath, get, setStatus, remo
 }
 
 function Detail({ initial, noun, basePath, setStatus, remove, showAnimal }) {
-  const { isAdmin } = useAuth()
   const navigate = useNavigate()
   const [app, setApp] = useState(initial)
   const [pick, setPick] = useState(initial.status)
@@ -71,7 +69,7 @@ function Detail({ initial, noun, basePath, setStatus, remove, showAnimal }) {
       await remove(app.id)
       navigate(basePath)
     } catch (err) {
-      setError(err.status === 403 ? 'Only an admin can delete.' : 'Could not delete this application.')
+      setError(err.status === 403 ? 'You are not allowed to delete this.' : 'Could not delete this application.')
       setBusy(false)
     }
   }
@@ -123,12 +121,12 @@ function Detail({ initial, noun, basePath, setStatus, remove, showAnimal }) {
 
       <div className="detail-actions">
         <Link className="btn btn--outline" to={basePath}>Back to list</Link>
-        {isAdmin && !confirming && (
+        {!confirming && (
           <button type="button" className="btn btn--outline" disabled={busy} onClick={() => setConfirming(true)}>
             Delete application
           </button>
         )}
-        {isAdmin && confirming && (
+        {confirming && (
           <>
             <span>Delete this application?</span>
             <button type="button" className="btn btn--primary" disabled={busy} onClick={doDelete}>Yes, delete</button>

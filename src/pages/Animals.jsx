@@ -1,13 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useAuth } from '../auth.jsx'
 import { listAnimals, setAnimalStatus, deleteAnimal } from '../api.js'
 
 const CATEGORY = { ADOPTABLE: 'Adoptable', RESIDENT: 'Resident', RESCUE: 'Rescue' }
 const STATUS = { AVAILABLE: 'Available', ADOPTED: 'Adopted' }
 
 export default function Animals() {
-  const { isAdmin } = useAuth()
   const [category, setCategory] = useState('')
   const [status, setStatus] = useState('')
   const [search, setSearch] = useState('')
@@ -76,7 +74,7 @@ export default function Animals() {
       if (page > 0 && result.data.content.length === 1) setPage(page - 1)
       else setReload((n) => n + 1)
     } catch (err) {
-      setActionError(err.status === 403 ? 'Only an admin can delete.' : `Could not delete ${a.name}.`)
+      setActionError(err.status === 403 ? 'You are not allowed to delete this.' : `Could not delete ${a.name}.`)
     } finally {
       setBusyId(null)
     }
@@ -162,11 +160,9 @@ export default function Animals() {
                     <button type="button" className="btn btn--outline btn--small" disabled={busyId === a.id} onClick={() => toggleStatus(a)}>
                       {a.status === 'AVAILABLE' ? 'Mark adopted' : 'Mark available'}
                     </button>
-                    {isAdmin && (
-                      <button type="button" className="btn btn--outline btn--small" disabled={busyId === a.id} onClick={() => setConfirmId(a.id)}>
-                        Delete
-                      </button>
-                    )}
+                    <button type="button" className="btn btn--outline btn--small" disabled={busyId === a.id} onClick={() => setConfirmId(a.id)}>
+                      Delete
+                    </button>
                   </>
                 )}
               </div>

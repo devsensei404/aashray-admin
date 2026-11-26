@@ -196,7 +196,7 @@ export async function setAnimalStatus(id, status) {
 
 export async function deleteAnimal(id) {
   await wait()
-  requireAdmin()
+  requireAuth()
   animals = animals.filter((x) => x.id !== Number(id))
 }
 
@@ -243,7 +243,7 @@ export async function setAdoptionStatus(id, status) {
 
 export async function deleteAdoptionApplication(id) {
   await wait()
-  requireAdmin()
+  requireAuth()
   adoptionApps = adoptionApps.filter((x) => x.id !== Number(id))
 }
 
@@ -272,7 +272,7 @@ export async function setVolunteerStatus(id, status) {
 
 export async function deleteVolunteerApplication(id) {
   await wait()
-  requireAdmin()
+  requireAuth()
   volunteerApps = volunteerApps.filter((x) => x.id !== Number(id))
 }
 
