@@ -4,6 +4,7 @@ import AppLayout from './components/AppLayout.jsx'
 import Login from './pages/Login.jsx'
 import Animals from './pages/Animals.jsx'
 import AnimalForm from './pages/AnimalForm.jsx'
+import { AdoptionList, AdoptionDetail } from './pages/Adoptions.jsx'
 
 export default function App() {
   return (
@@ -14,6 +15,8 @@ export default function App() {
           <Route path="/animals" element={<Animals />} />
           <Route path="/animals/new" element={<AnimalForm />} />
           <Route path="/animals/:id/edit" element={<AnimalForm />} />
+          <Route path="/adoptions" element={<AdoptionList />} />
+          <Route path="/adoptions/:id" element={<AdoptionDetail />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/animals" replace />} />
