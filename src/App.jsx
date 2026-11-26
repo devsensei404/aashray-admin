@@ -5,6 +5,7 @@ import Login from './pages/Login.jsx'
 import Animals from './pages/Animals.jsx'
 import AnimalForm from './pages/AnimalForm.jsx'
 import { AdoptionList, AdoptionDetail } from './pages/Adoptions.jsx'
+import { VolunteerList, VolunteerDetail } from './pages/Volunteers.jsx'
 
 export default function App() {
   return (
@@ -17,6 +18,8 @@ export default function App() {
           <Route path="/animals/:id/edit" element={<AnimalForm />} />
           <Route path="/adoptions" element={<AdoptionList />} />
           <Route path="/adoptions/:id" element={<AdoptionDetail />} />
+          <Route path="/volunteers" element={<VolunteerList />} />
+          <Route path="/volunteers/:id" element={<VolunteerDetail />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/animals" replace />} />

@@ -5,6 +5,7 @@ import { useAuth } from '../auth.jsx'
 const links = [
   { to: '/animals', label: 'Animals' },
   { to: '/adoptions', label: 'Adoptions' },
+  { to: '/volunteers', label: 'Volunteers' },
 ]
 
 export default function AppLayout() {
