@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../auth.jsx'
 import { listAnimals, setAnimalStatus, deleteAnimal } from '../api.js'
 
@@ -87,8 +88,11 @@ export default function Animals() {
   return (
     <>
       <div className="page-head">
-        <h1>Animals</h1>
-        {data && <p className="muted">{data.totalElements} in total</p>}
+        <div>
+          <h1>Animals</h1>
+          {data && <p className="muted">{data.totalElements} in total</p>}
+        </div>
+        <Link className="btn btn--primary btn--small" to="/animals/new">Add animal</Link>
       </div>
 
       <form className="filters" role="search" onSubmit={(e) => e.preventDefault()}>
@@ -154,6 +158,7 @@ export default function Animals() {
                   </>
                 ) : (
                   <>
+                    <Link className="btn btn--outline btn--small" to={`/animals/${a.id}/edit`}>Edit</Link>
                     <button type="button" className="btn btn--outline btn--small" disabled={busyId === a.id} onClick={() => toggleStatus(a)}>
                       {a.status === 'AVAILABLE' ? 'Mark adopted' : 'Mark available'}
                     </button>
