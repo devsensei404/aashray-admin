@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { getAnimal, createAnimal, updateAnimal, uploadAnimalImage } from '../api.js'
+import { compressImage, looksLikeJpegOrPng } from '../compressImage.js'
+import { formatSize } from '../format.js'
 
 const CATEGORY = { ADOPTABLE: 'Adoptable', RESIDENT: 'Resident', RESCUE: 'Rescue' }
 const STATUS = { AVAILABLE: 'Available', ADOPTED: 'Adopted' }
 const BLANK = { id: null, name: '', category: 'ADOPTABLE', status: 'AVAILABLE', ageText: '', description: '', imageUrl: null }
 const MAX_IMAGE = 5 * 1024 * 1024
+const MAX_INPUT = 25 * 1024 * 1024
 
 function validate(v) {
   const e = {}
@@ -64,6 +67,9 @@ function Form({ initial }) {
   const [file, setFile] = useState(null)
   const [preview, setPreview] = useState(null)
   const previewRef = useRef(null)
+  const pickRef = useRef(0)
+  const [compressing, setCompressing] = useState(false)
+  const [note, setNote] = useState('')
   const [errors, setErrors] = useState({})
   const [formError, setFormError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -82,25 +88,54 @@ function Form({ initial }) {
   })
   const err = (k) => errors[k] && <p className="field-error" id={`${k}-error`}>{errors[k]}</p>
 
-  function pickFile(e) {
-    const f = e.target.files[0]
+  async function pickFile(e) {
+    const input = e.target
+    const f = input.files[0]
     if (!f) return
     if (!['image/jpeg', 'image/png'].includes(f.type)) {
       setErrors((p) => ({ ...p, file: 'Use a JPG or PNG image.' }))
-      e.target.value = ''
+      input.value = ''
       return
     }
-    if (f.size > MAX_IMAGE) {
-      setErrors((p) => ({ ...p, file: 'Image must be 5 MB or smaller.' }))
-      e.target.value = ''
+    if (f.size > MAX_INPUT) {
+      setErrors((p) => ({ ...p, file: 'Image must be 25 MB or smaller.' }))
+      input.value = ''
       return
     }
-    if (previewRef.current) URL.revokeObjectURL(previewRef.current)
-    const url = URL.createObjectURL(f)
-    previewRef.current = url
-    setPreview(url)
-    setFile(f)
-    setErrors((p) => ({ ...p, file: undefined }))
+
+    const id = ++pickRef.current
+    setCompressing(true)
+    setNote('')
+    try {
+      if (!(await looksLikeJpegOrPng(f))) {
+        if (id === pickRef.current) {
+          setErrors((p) => ({ ...p, file: 'Use a JPG or PNG image.' }))
+          input.value = ''
+        }
+        return
+      }
+      const out = await compressImage(f)
+      if (id !== pickRef.current) return
+      if (out.size > MAX_IMAGE) {
+        setErrors((p) => ({ ...p, file: 'Could not shrink this photo below 5 MB. Try another one.' }))
+        input.value = ''
+        return
+      }
+      if (previewRef.current) URL.revokeObjectURL(previewRef.current)
+      const url = URL.createObjectURL(out)
+      previewRef.current = url
+      setPreview(url)
+      setFile(out)
+      setNote(out === f ? `Photo ready: ${formatSize(out.size)}.` : `Photo ready: ${formatSize(out.size)} (was ${formatSize(f.size)}).`)
+      setErrors((p) => ({ ...p, file: undefined }))
+    } catch {
+      if (id === pickRef.current) {
+        setErrors((p) => ({ ...p, file: 'Could not read this image. Try another photo.' }))
+        input.value = ''
+      }
+    } finally {
+      if (id === pickRef.current) setCompressing(false)
+    }
   }
 
   async function onSubmit(e) {
@@ -202,12 +237,14 @@ function Form({ initial }) {
             {shown ? <img src={shown} alt={values.name ? `Photo of ${values.name}` : 'Selected photo'} /> : null}
           </div>
           <input id="file" type="file" accept="image/jpeg,image/png" onChange={pickFile} {...inv('file')} />
-          <p className="hint muted">JPG or PNG, up to 5 MB.</p>
+          <p className="hint muted" role="status">
+            {compressing ? 'Shrinking photo' : note || 'JPG or PNG. Large photos are shrunk automatically before upload.'}
+          </p>
           {err('file')}
         </div>
 
         <div className="form-actions">
-          <button type="submit" className="btn btn--primary" disabled={busy}>
+          <button type="submit" className="btn btn--primary" disabled={busy || compressing}>
             {busy ? 'Saving' : editing ? 'Save changes' : 'Add animal'}
           </button>
           <Link className="btn btn--outline" to="/animals">Cancel</Link>
