@@ -26,3 +26,4 @@ dist-ssr
 *:Zone.Identifier
 .env
 .env.*
+!.env.example
