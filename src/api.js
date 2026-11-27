@@ -1,4 +1,5 @@
 const TOKEN_KEY = 'aashray_admin_token'
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1'
 
 function readToken() {
   try {
@@ -29,9 +30,6 @@ export function setUnauthorizedHandler(fn) {
   onUnauthorized = fn
 }
 
-const DELAY = 300
-const wait = (ms = DELAY) => new Promise((r) => setTimeout(r, ms))
-
 function fail(status, message, fieldErrors) {
   const err = new Error(message)
   err.status = status
@@ -39,252 +37,149 @@ function fail(status, message, fieldErrors) {
   return err
 }
 
-function requireAuth() {
-  if (!token) {
+function query(params) {
+  const q = new URLSearchParams()
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== '' && v !== null && v !== undefined) q.set(k, String(v))
+  })
+  const s = q.toString()
+  return s ? `?${s}` : ''
+}
+
+async function request(method, path, { body, form, auth = true } = {}) {
+  if (auth && !token) {
+    setToken(null)
     onUnauthorized()
     throw fail(401, 'Not logged in')
   }
-  return mockUsers.find((u) => u.id === Number(token.split('-')[1]))
-}
 
-function requireAdmin() {
-  const u = requireAuth()
-  if (u.role !== 'ADMIN') throw fail(403, 'Not allowed')
-  return u
-}
-
-function now() {
-  return new Date().toISOString()
-}
-
-function page(list, p = 0, size = 20) {
-  const start = p * size
-  return {
-    content: list.slice(start, start + size),
-    page: p,
-    size,
-    totalElements: list.length,
-    totalPages: Math.max(1, Math.ceil(list.length / size)),
+  const headers = {}
+  if (auth) headers.Authorization = `Bearer ${token}`
+  let payload
+  if (form) {
+    payload = form
+  } else if (body !== undefined) {
+    headers['Content-Type'] = 'application/json'
+    payload = JSON.stringify(body)
   }
-}
 
-const mockUsers = [
-  { id: 1, name: 'Test Admin', email: 'admin@example.org', role: 'ADMIN', active: true },
-  { id: 2, name: 'Test Manager', email: 'manager@example.org', role: 'MANAGER', active: true },
-]
-
-let animals = Array.from({ length: 27 }, (_, i) => {
-  const cats = ['ADOPTABLE', 'RESIDENT', 'RESCUE']
-  const category = cats[i % 3]
-  return {
-    id: i + 1,
-    name: `Sample Animal ${i + 1}`,
-    category,
-    status: category === 'ADOPTABLE' && i % 2 === 0 ? 'AVAILABLE' : i % 5 === 0 ? 'ADOPTED' : 'AVAILABLE',
-    ageText: `about ${(i % 6) + 1} years`,
-    description: 'Placeholder description for mock data.',
-    imageUrl: null,
-    createdAt: new Date(Date.now() - i * 86400000).toISOString(),
-    updatedAt: new Date(Date.now() - i * 86400000).toISOString(),
+  let res
+  try {
+    res = await fetch(`${BASE_URL}${path}`, { method, headers, body: payload })
+  } catch {
+    throw fail(0, 'Cannot reach the server')
   }
-})
 
-let adoptionApps = Array.from({ length: 12 }, (_, i) => ({
-  id: i + 1,
-  animalId: (i % 5) + 1,
-  animalName: `Sample Animal ${(i % 5) + 1}`,
-  applicantName: `Test Applicant ${i + 1}`,
-  phone: `+9100000000${String(i).padStart(2, '0')}`,
-  message: 'Placeholder message for mock data.',
-  status: ['PENDING', 'APPROVED', 'REJECTED'][i % 3],
-  createdAt: new Date(Date.now() - i * 3600000 * 20).toISOString(),
-}))
-
-let volunteerApps = Array.from({ length: 8 }, (_, i) => ({
-  id: i + 1,
-  applicantName: `Test Volunteer ${i + 1}`,
-  phone: `+9100000001${String(i).padStart(2, '0')}`,
-  message: 'Placeholder message for mock data.',
-  status: ['PENDING', 'APPROVED', 'REJECTED'][i % 3],
-  createdAt: new Date(Date.now() - i * 3600000 * 30).toISOString(),
-}))
-
-let stories = Array.from({ length: 4 }, (_, i) => ({
-  id: i + 1,
-  title: `Sample Story ${i + 1}`,
-  body: 'Placeholder story text for mock data.',
-  imageUrl: null,
-  published: i % 2 === 0,
-  createdAt: now(),
-  updatedAt: now(),
-}))
-
-export async function login(email, password) {
-  await wait()
-  const u = mockUsers.find((x) => x.email === email && x.active)
-  if (!u || password !== 'demo1234') throw fail(401, 'Invalid email or password')
-  return {
-    token: `mock-${u.id}`,
-    expiresAt: new Date(Date.now() + 3600000).toISOString(),
-    user: { id: u.id, name: u.name, role: u.role },
+  const text = await res.text()
+  let data = null
+  if (text) {
+    try {
+      data = JSON.parse(text)
+    } catch {
+      data = null
+    }
   }
+
+  if (!res.ok) {
+    if (res.status === 401 && auth) {
+      setToken(null)
+      onUnauthorized()
+    }
+    throw fail(res.status, data?.message || `Request failed (${res.status})`, data?.fieldErrors)
+  }
+  return data
 }
 
-export async function getMe() {
-  await wait(100)
-  const u = requireAuth()
-  return { id: u.id, name: u.name, role: u.role }
+export function login(email, password) {
+  return request('POST', '/auth/login', { body: { email, password }, auth: false })
 }
 
-export async function listAnimals({ category = '', status = '', search = '', page: p = 0, size = 20 } = {}) {
-  await wait()
-  requireAuth()
-  const q = search.trim().toLowerCase()
-  const list = animals
-    .filter((a) => (!category || a.category === category) && (!status || a.status === status))
-    .filter((a) => !q || a.name.toLowerCase().includes(q))
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-  return page(list, p, size)
+export function getMe() {
+  return request('GET', '/auth/me')
 }
 
-export async function getAnimal(id) {
-  await wait()
-  requireAuth()
-  const a = animals.find((x) => x.id === Number(id))
-  if (!a) throw fail(404, 'Not found')
-  return a
+export function listAnimals({ category = '', status = '', search = '', page = 0, size = 20 } = {}) {
+  return request('GET', `/animals${query({ category, status, search: search.trim(), page, size })}`)
 }
 
-function validateAnimal(b) {
-  const fe = {}
-  if (!b.name?.trim()) fe.name = 'must not be blank'
-  else if (b.name.length > 100) fe.name = 'max 100 characters'
-  if ((b.description || '').length > 5000) fe.description = 'max 5000 characters'
-  if (!['ADOPTABLE', 'RESIDENT', 'RESCUE'].includes(b.category)) fe.category = 'invalid category'
-  if (!['AVAILABLE', 'ADOPTED'].includes(b.status)) fe.status = 'invalid status'
-  if (Object.keys(fe).length) throw fail(400, 'Validation failed', fe)
+export function getAnimal(id) {
+  return request('GET', `/animals/${id}`)
 }
 
-export async function createAnimal(body) {
-  await wait()
-  requireAuth()
-  validateAnimal(body)
-  const a = { ...body, id: Math.max(0, ...animals.map((x) => x.id)) + 1, createdAt: now(), updatedAt: now() }
-  animals = [a, ...animals]
-  return a
+export function createAnimal(body) {
+  return request('POST', '/animals', { body })
 }
 
-export async function updateAnimal(id, body) {
-  await wait()
-  requireAuth()
-  validateAnimal(body)
-  const i = animals.findIndex((x) => x.id === Number(id))
-  if (i < 0) throw fail(404, 'Not found')
-  animals[i] = { ...animals[i], ...body, id: animals[i].id, updatedAt: now() }
-  return animals[i]
+export function updateAnimal(id, body) {
+  return request('PUT', `/animals/${id}`, { body })
 }
 
-export async function setAnimalStatus(id, status) {
-  await wait()
-  requireAuth()
-  const a = animals.find((x) => x.id === Number(id))
-  if (!a) throw fail(404, 'Not found')
-  a.status = status
-  a.updatedAt = now()
-  return a
+export function setAnimalStatus(id, status) {
+  return request('PATCH', `/animals/${id}/status`, { body: { status } })
 }
 
-export async function deleteAnimal(id) {
-  await wait()
-  requireAuth()
-  animals = animals.filter((x) => x.id !== Number(id))
+export function deleteAnimal(id) {
+  return request('DELETE', `/animals/${id}`)
 }
 
-export async function uploadAnimalImage(id, file) {
-  await wait(600)
-  requireAuth()
-  if (!['image/jpeg', 'image/png'].includes(file.type)) throw fail(400, 'Validation failed', { file: 'JPG or PNG only' })
-  if (file.size > 5 * 1024 * 1024) throw fail(400, 'Validation failed', { file: 'max 5 MB' })
-  const imageUrl = URL.createObjectURL(file)
-  const a = animals.find((x) => x.id === Number(id))
-  if (a) a.imageUrl = imageUrl
-  return { imageUrl }
+export function uploadAnimalImage(id, file) {
+  const form = new FormData()
+  form.append('file', file)
+  return request('POST', `/animals/${id}/image`, { form })
 }
 
-function listApps(source, { status = '', animalId = '', page: p = 0, size = 20 } = {}) {
-  const list = source
-    .filter((a) => (!status || a.status === status) && (!animalId || a.animalId === Number(animalId)))
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-  return page(list, p, size)
+export function listAdoptionApplications({ status = '', animalId = '', page = 0, size = 20 } = {}) {
+  return request('GET', `/adoption-applications${query({ status, animalId, page, size })}`)
 }
 
-export async function listAdoptionApplications(params) {
-  await wait()
-  requireAuth()
-  return listApps(adoptionApps, params)
+export function getAdoptionApplication(id) {
+  return request('GET', `/adoption-applications/${id}`)
 }
 
-export async function getAdoptionApplication(id) {
-  await wait()
-  requireAuth()
-  const a = adoptionApps.find((x) => x.id === Number(id))
-  if (!a) throw fail(404, 'Not found')
-  return a
+export function setAdoptionStatus(id, status) {
+  return request('PATCH', `/adoption-applications/${id}/status`, { body: { status } })
 }
 
-export async function setAdoptionStatus(id, status) {
-  await wait()
-  requireAuth()
-  const a = adoptionApps.find((x) => x.id === Number(id))
-  if (!a) throw fail(404, 'Not found')
-  a.status = status
-  return a
+export function deleteAdoptionApplication(id) {
+  return request('DELETE', `/adoption-applications/${id}`)
 }
 
-export async function deleteAdoptionApplication(id) {
-  await wait()
-  requireAuth()
-  adoptionApps = adoptionApps.filter((x) => x.id !== Number(id))
+export function listVolunteerApplications({ status = '', page = 0, size = 20 } = {}) {
+  return request('GET', `/volunteer-applications${query({ status, page, size })}`)
 }
 
-export async function listVolunteerApplications(params) {
-  await wait()
-  requireAuth()
-  return listApps(volunteerApps, params)
+export function getVolunteerApplication(id) {
+  return request('GET', `/volunteer-applications/${id}`)
 }
 
-export async function getVolunteerApplication(id) {
-  await wait()
-  requireAuth()
-  const a = volunteerApps.find((x) => x.id === Number(id))
-  if (!a) throw fail(404, 'Not found')
-  return a
+export function setVolunteerStatus(id, status) {
+  return request('PATCH', `/volunteer-applications/${id}/status`, { body: { status } })
 }
 
-export async function setVolunteerStatus(id, status) {
-  await wait()
-  requireAuth()
-  const a = volunteerApps.find((x) => x.id === Number(id))
-  if (!a) throw fail(404, 'Not found')
-  a.status = status
-  return a
+export function deleteVolunteerApplication(id) {
+  return request('DELETE', `/volunteer-applications/${id}`)
 }
 
-export async function deleteVolunteerApplication(id) {
-  await wait()
-  requireAuth()
-  volunteerApps = volunteerApps.filter((x) => x.id !== Number(id))
+export function listStories({ published = '', page = 0, size = 20 } = {}) {
+  return request('GET', `/stories${query({ published, page, size })}`)
 }
 
-export async function listStories({ published = '', page: p = 0, size = 20 } = {}) {
-  await wait()
-  requireAuth()
-  const list = stories.filter((s) => published === '' || String(s.published) === String(published))
-  return page(list, p, size)
+export function getStory(id) {
+  return request('GET', `/stories/${id}`)
 }
 
-export async function listUsers() {
-  await wait()
-  requireAdmin()
-  return mockUsers
+export function createStory(body) {
+  return request('POST', '/stories', { body })
+}
+
+export function updateStory(id, body) {
+  return request('PUT', `/stories/${id}`, { body })
+}
+
+export function setStoryPublished(id, published) {
+  return request('PATCH', `/stories/${id}/published`, { body: { published } })
+}
+
+export function deleteStory(id) {
+  return request('DELETE', `/stories/${id}`)
 }

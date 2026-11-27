@@ -20,7 +20,7 @@ export default function Login() {
     try {
       await login(email.trim(), password)
     } catch (err) {
-      setError(err.status === 401 ? err.message : 'Something went wrong. Try again.')
+      setError(err.status === 401 || err.status === 0 ? err.message : 'Something went wrong. Try again.')
       setBusy(false)
     }
   }
