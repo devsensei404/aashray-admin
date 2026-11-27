@@ -30,10 +30,10 @@ Every API call lives in one file, `src/api.js`. It currently returns mock data i
 
 | Role | Can do |
 |---|---|
-| ADMIN | Everything, including delete and managing manager accounts |
-| MANAGER | View, create and update animals, stories and applications; change application status. Cannot delete or manage accounts |
+| ADMIN | Everything, including managing manager accounts |
+| MANAGER | View, create, update and delete animals, stories and applications; change application status. Cannot manage accounts |
 
-The dashboard hides controls the signed-in role cannot use. The backend is the real enforcement and must check roles on every request.
+The dashboard hides controls the signed-in role cannot use. The backend is the real enforcement and must check roles on every request. Deleting asks for confirmation first.
 
 ## Privacy
 
